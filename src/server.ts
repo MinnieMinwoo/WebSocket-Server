@@ -69,4 +69,4 @@ wsServer.on("connection", (socket) => {
   socket.on("nickname", (nickname) => (socket["nickname"] = nickname));
 });
 
-server.listen(3000);
+httpServer.listen(3000);
