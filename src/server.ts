@@ -1,6 +1,26 @@
 import express, { Response, Request } from "express";
 import { Server } from "socket.io";
 import http from "http";
+
+const app = express();
+
+app.set("view engine", "pug");
+app.set("views", __dirname + "/views");
+app.use("/public", express.static(__dirname + "/public"));
+app.get("/", (req: Request, res: Response) => res.render("home"));
+app.get("/*", (req: Request, res: Response) => res.redirect("/"));
+
+const httpServer = http.createServer(app);
+const wsServer = new Server(httpServer);
+
+const handleListen = () => console.log("test");
+
+httpServer.listen(3000);
+
+/*
+import express, { Response, Request } from "express";
+import { Server } from "socket.io";
+import http from "http";
 import { instrument } from "@socket.io/admin-ui";
 
 const app = express();
@@ -70,3 +90,4 @@ wsServer.on("connection", (socket) => {
 });
 
 httpServer.listen(3000);
+*/
