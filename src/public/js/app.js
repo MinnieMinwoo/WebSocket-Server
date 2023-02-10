@@ -34,14 +34,19 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
         if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
     }
 };
+var _this = this;
 var socket = io();
 var myFace = document.getElementById("myFace");
 var muteBtn = document.getElementById("mute");
 var cameraBtn = document.getElementById("camera");
 var cameraSelect = document.getElementById("cameras");
+var call = document.getElementById("call");
+call.hidden = true;
 var myStream;
 var muted = false;
 var cameraOff = false;
+var roomName;
+var myPeerConnection;
 function getCameras() {
     return __awaiter(this, void 0, void 0, function () {
         var devices, cameras, currentCamera_1, e_1;
@@ -54,7 +59,6 @@ function getCameras() {
                     devices = _a.sent();
                     cameras = devices.filter(function (device) { return device.kind === "videoinput"; });
                     currentCamera_1 = myStream.getVideoTracks()[0];
-                    console.log(cameras.length);
                     cameras.forEach(function (camera) {
                         var option = document.createElement("option");
                         option.value = camera.deviceId;
@@ -106,7 +110,6 @@ function getMedia(deviceId) {
         });
     });
 }
-getMedia();
 function handleMuteClick() {
     if (!myStream)
         return;
@@ -129,11 +132,19 @@ function handleCameraBtnClick() {
 }
 function handleCameraChange() {
     return __awaiter(this, void 0, void 0, function () {
+        var videoTrack, videoSender;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0: return [4 /*yield*/, getMedia(cameraSelect.value)];
                 case 1:
                     _a.sent();
+                    videoTrack = myStream.getVideoTracks()[0];
+                    if (myPeerConnection) {
+                        videoSender = myPeerConnection
+                            .getSenders()
+                            .find(function (sender) { var _a; return ((_a = sender.track) === null || _a === void 0 ? void 0 : _a.kind) === "video"; });
+                        videoSender === null || videoSender === void 0 ? void 0 : videoSender.replaceTrack(videoTrack);
+                    }
                     return [2 /*return*/];
             }
         });
@@ -142,6 +153,117 @@ function handleCameraChange() {
 muteBtn.addEventListener("click", handleMuteClick);
 cameraBtn.addEventListener("click", handleCameraBtnClick);
 cameraSelect.addEventListener("input", handleCameraChange);
+// Welcome form
+var welcome = document.getElementById("welcome");
+var welcomeForm = welcome.querySelector("form");
+function initCall() {
+    return __awaiter(this, void 0, void 0, function () {
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    welcome.hidden = true;
+                    call.hidden = false;
+                    return [4 /*yield*/, getMedia()];
+                case 1:
+                    _a.sent();
+                    makeConnection();
+                    return [2 /*return*/];
+            }
+        });
+    });
+}
+function handleWelcomeSubmit(event) {
+    return __awaiter(this, void 0, void 0, function () {
+        var input;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    event.preventDefault();
+                    input = welcomeForm.querySelector("input");
+                    return [4 /*yield*/, initCall()];
+                case 1:
+                    _a.sent();
+                    socket.emit("join_room", input.value);
+                    roomName = input.value;
+                    input.value = "";
+                    return [2 /*return*/];
+            }
+        });
+    });
+}
+welcomeForm.addEventListener("submit", handleWelcomeSubmit);
+// Socket code
+socket.on("welcome", function () { return __awaiter(_this, void 0, void 0, function () {
+    var offer;
+    return __generator(this, function (_a) {
+        switch (_a.label) {
+            case 0: return [4 /*yield*/, myPeerConnection.createOffer()];
+            case 1:
+                offer = _a.sent();
+                myPeerConnection.setLocalDescription(offer);
+                socket.emit("offer", offer, roomName);
+                return [2 /*return*/];
+        }
+    });
+}); });
+socket.on("offer", function (offer) { return __awaiter(_this, void 0, void 0, function () {
+    var answer;
+    return __generator(this, function (_a) {
+        switch (_a.label) {
+            case 0:
+                console.log("received the offer");
+                myPeerConnection.setRemoteDescription(offer);
+                return [4 /*yield*/, myPeerConnection.createAnswer()];
+            case 1:
+                answer = _a.sent();
+                myPeerConnection.setLocalDescription(answer);
+                socket.emit("offer", answer, roomName);
+                console.log("sent the answer");
+                return [2 /*return*/];
+        }
+    });
+}); });
+socket.on("answer", function (answer) { return __awaiter(_this, void 0, void 0, function () {
+    return __generator(this, function (_a) {
+        console.log("received the answer");
+        myPeerConnection.setRemoteDescription(answer);
+        return [2 /*return*/];
+    });
+}); });
+socket.on("ice", function (ice) { return __awaiter(_this, void 0, void 0, function () {
+    return __generator(this, function (_a) {
+        console.log("received candidate");
+        myPeerConnection.addIceCandidate(ice);
+        return [2 /*return*/];
+    });
+}); });
+// RTC Code
+function makeConnection() {
+    myPeerConnection = new RTCPeerConnection({
+        iceServers: [
+            {
+                urls: [
+                    "stun:stun.l.google.com:19302",
+                    "stun:stun1.l.google.com:19302",
+                    "stun:stun2.l.google.com:19302",
+                    "stun:stun3.l.google.com:19302",
+                    "stun:stun4.l.google.com:19302",
+                ]
+            },
+        ]
+    });
+    myPeerConnection.addEventListener("icecandidate", handleIce);
+    myPeerConnection.addEventListener("track", handleAddStream);
+    myStream.getTracks().forEach(function (track) { return myPeerConnection.addTrack(track, myStream); });
+}
+function handleIce(data) {
+    console.log("sent candidate");
+    socket.emit("ice", data.candidate, roomName);
+}
+function handleAddStream(data) {
+    var peerFace = document.getElementById("peerFace");
+    peerFace.srcObject = data.streams[0];
+}
 /*
 declare const io: () => any;
 const socket = io();
